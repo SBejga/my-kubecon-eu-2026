@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#1e40af">
+  <title>KubeCon EU 2026 · Talk Browser</title>
+  <script src="data.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #f0f4f8;
+      --surface:  #ffffff;
+      --border:   #dde3ed;
+      --text:     #1e293b;
+      --muted:    #64748b;
+      --primary:  #1e40af;
+      --primary-light: #dbeafe;
+      --mon:   #b45309; --mon-bg:   #fef3c7;
+      --tue:   #065f46; --tue-bg:   #d1fae5;
+      --wed:   #4338ca; --wed-bg:   #ede9fe;
+      --thu:   #9f1239; --thu-bg:   #ffe4e6;
+      --radius: 10px;
+      --shadow: 0 1px 4px rgba(0,0,0,.08), 0 2px 8px rgba(0,0,0,.04);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* ── Header ──────────────────────────────────────── */
+    header {
+      background: var(--primary);
+      color: white;
+      padding: env(safe-area-inset-top, 0) 0 0;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .header-top {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px 10px;
+    }
+    .header-top h1 { font-size: 1.1rem; font-weight: 700; }
+    .header-top .subtitle { font-size: .75rem; opacity: .8; margin-top: 1px; }
+
+    /* ── Tabs ────────────────────────────────────────── */
+    .tabs {
+      display: flex; border-top: 1px solid rgba(255,255,255,.15);
+    }
+    .tab-btn {
+      flex: 1; padding: 10px 8px; background: none; border: none;
+      color: rgba(255,255,255,.65); font-size: .85rem; font-weight: 600;
+      cursor: pointer; border-bottom: 3px solid transparent;
+      transition: color .15s, border-color .15s;
+    }
+    .tab-btn.active {
+      color: white; border-bottom-color: white;
+    }
+
+    /* ── Search + filters ────────────────────────────── */
+    .controls {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 12px 8px;
+      position: sticky; top: 88px; z-index: 90;
+    }
+    .search-wrap {
+      position: relative; margin-bottom: 8px;
+    }
+    .search-wrap svg {
+      position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+      color: var(--muted); pointer-events: none; width: 16px; height: 16px;
+    }
+    #search {
+      width: 100%; padding: 9px 36px; border: 1px solid var(--border);
+      border-radius: var(--radius); font-size: .9rem; background: var(--bg);
+      color: var(--text); outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    #search:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
+    #search-clear {
+      position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; cursor: pointer; color: var(--muted);
+      font-size: 1rem; line-height: 1; display: none; padding: 2px;
+    }
+    #search-clear.visible { display: block; }
+
+    .filter-row {
+      display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px;
+      scrollbar-width: none;
+    }
+    .filter-row::-webkit-scrollbar { display: none; }
+    .filter-row.days { margin-bottom: 6px; }
+
+    .chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 5px 10px; border-radius: 20px;
+      font-size: .78rem; font-weight: 600; white-space: nowrap;
+      border: 1.5px solid transparent; cursor: pointer;
+      transition: all .15s; flex-shrink: 0;
+      background: var(--bg); color: var(--muted); border-color: var(--border);
+    }
+    .chip:active { transform: scale(.95); }
+
+    .chip.day-all.active, .chip.day-all:hover { background: var(--primary); color: white; border-color: var(--primary); }
+    .chip.day-mon { color: var(--mon); border-color: #fcd34d; background: var(--mon-bg); }
+    .chip.day-mon.active, .chip.day-mon:hover { background: var(--mon); color: white; }
+    .chip.day-tue { color: var(--tue); border-color: #6ee7b7; background: var(--tue-bg); }
+    .chip.day-tue.active, .chip.day-tue:hover { background: var(--tue); color: white; }
+    .chip.day-wed { color: var(--wed); border-color: #a5b4fc; background: var(--wed-bg); }
+    .chip.day-wed.active, .chip.day-wed:hover { background: var(--wed); color: white; }
+    .chip.day-thu { color: var(--thu); border-color: #fda4af; background: var(--thu-bg); }
+    .chip.day-thu.active, .chip.day-thu:hover { background: var(--thu); color: white; }
+
+    .tag-chip { background: var(--bg); color: var(--muted); border-color: var(--border); }
+    .tag-chip.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+    /* ── Results meta ────────────────────────────────── */
+    .results-meta {
+      padding: 8px 16px 4px;
+      font-size: .8rem; color: var(--muted); font-weight: 500;
+    }
+
+    /* ── Talk cards ──────────────────────────────────── */
+    #talks-view { padding: 0 12px 80px; }
+    .cards-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px; padding-top: 8px;
+    }
+    @media (min-width: 640px) {
+      .cards-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (min-width: 1024px) {
+      .cards-grid { grid-template-columns: 1fr 1fr 1fr; }
+    }
+
+    .card {
+      background: var(--surface); border-radius: var(--radius);
+      border: 1px solid var(--border); box-shadow: var(--shadow);
+      overflow: hidden; cursor: pointer;
+      transition: box-shadow .15s, transform .1s;
+    }
+    .card:active { transform: scale(.99); }
+    .card.expanded { cursor: default; }
+
+    .card-header {
+      padding: 10px 12px 8px;
+      border-left: 4px solid var(--primary);
+    }
+    .card-header.day-Monday    { border-left-color: #f59e0b; }
+    .card-header.day-Tuesday   { border-left-color: #10b981; }
+    .card-header.day-Wednesday { border-left-color: #6366f1; }
+    .card-header.day-Thursday  { border-left-color: #f43f5e; }
+
+    .card-meta {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 4px; flex-wrap: wrap; gap: 4px;
+    }
+    .card-time {
+      font-size: .72rem; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .02em;
+    }
+    .card-type {
+      font-size: .68rem; padding: 1px 6px; border-radius: 4px;
+      background: var(--bg); color: var(--muted); border: 1px solid var(--border);
+      font-weight: 600; text-transform: lowercase;
+    }
+    .card-type.keynote, .card-type.sponsored_keynote { background: #fef9c3; color: #92400e; border-color: #fcd34d; }
+    .card-type.lightning_talk { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
+    .card-type.panel { background: #f0f9ff; color: #075985; border-color: #bae6fd; }
+    .card-type.tutorial, .card-type.workshop { background: #fdf4ff; color: #7e22ce; border-color: #e9d5ff; }
+    .card-type.contribfest { background: #fff7ed; color: #9a3412; border-color: #fed7aa; }
+
+    .card-title {
+      font-size: .9rem; font-weight: 700; line-height: 1.35;
+      margin-bottom: 4px; color: var(--text);
+    }
+    .card-room {
+      font-size: .73rem; color: var(--muted); margin-bottom: 4px;
+    }
+    .card-speakers {
+      font-size: .75rem; color: var(--muted);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    .card-body { padding: 0 12px 10px; }
+
+    .card-tags {
+      display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 0 4px;
+    }
+    .tag {
+      font-size: .66rem; font-weight: 700; padding: 2px 6px;
+      border-radius: 4px; letter-spacing: .02em;
+    }
+
+    .card-desc {
+      font-size: .8rem; color: var(--muted); line-height: 1.5;
+      margin-top: 6px;
+    }
+    .card-desc.collapsed {
+      display: -webkit-box; -webkit-box-orient: vertical;
+      -webkit-line-clamp: 3; overflow: hidden;
+    }
+    .card-expand-btn {
+      font-size: .75rem; color: var(--primary); background: none;
+      border: none; cursor: pointer; padding: 4px 0 0; font-weight: 600;
+      display: block;
+    }
+    .card-link {
+      display: inline-block; margin-top: 8px; font-size: .75rem;
+      color: var(--primary); text-decoration: none; font-weight: 600;
+    }
+    .card-link:hover { text-decoration: underline; }
+
+    /* ── Tag color palette ───────────────────────────── */
+    .t-argocd       { background: #fee2e2; color: #b91c1c; }
+    .t-crossplane   { background: #fef3c7; color: #92400e; }
+    .t-terraform    { background: #ede9fe; color: #5b21b6; }
+    .t-helm         { background: #fce7f3; color: #9d174d; }
+    .t-keycloak     { background: #ffedd5; color: #9a3412; }
+    .t-otel         { background: #cffafe; color: #164e63; }
+    .t-mcp          { background: #dbeafe; color: #1e40af; }
+    .t-ai-agents    { background: #f0fdf4; color: #14532d; }
+    .t-cilium       { background: #d1fae5; color: #065f46; }
+    .t-gitops       { background: #e0e7ff; color: #3730a3; }
+    .t-platform-eng { background: #f0f9ff; color: #0c4a6e; }
+    .t-multi-tenancy{ background: #fdf4ff; color: #6b21a8; }
+    .t-cert-manager { background: #fff1f2; color: #881337; }
+    .t-policy       { background: #ecfdf5; color: #064e3b; }
+    .t-opa          { background: #f0fdf4; color: #14532d; }
+    .t-security     { background: #fef2f2; color: #991b1b; }
+    .t-observability{ background: #fffbeb; color: #78350f; }
+    .t-networking   { background: #f0fdfa; color: #134e4a; }
+    .t-identity     { background: #faf5ff; color: #581c87; }
+    .t-cost         { background: #f7fee7; color: #3f6212; }
+    .t-backstage    { background: #e0f2fe; color: #0369a1; }
+    .t-ai           { background: #f0fdf4; color: #166534; }
+
+    /* ── Empty state ─────────────────────────────────── */
+    .empty {
+      text-align: center; padding: 60px 20px; color: var(--muted);
+    }
+    .empty .icon { font-size: 3rem; margin-bottom: 12px; }
+    .empty h3 { font-size: 1rem; margin-bottom: 6px; }
+
+    /* ── Schedule view ───────────────────────────────── */
+    #schedule-view {
+      display: none; padding: 16px 16px 80px;
+      max-width: 900px; margin: 0 auto;
+    }
+    #schedule-content { background: var(--surface); border-radius: var(--radius);
+      border: 1px solid var(--border); padding: 20px 16px; box-shadow: var(--shadow); }
+    #schedule-content h1 { font-size: 1.3rem; margin-bottom: 8px; }
+    #schedule-content h2 { font-size: 1.1rem; margin: 24px 0 10px; padding-bottom: 4px;
+      border-bottom: 2px solid var(--border); color: var(--primary); }
+    #schedule-content h3 { font-size: .95rem; margin: 16px 0 8px; color: var(--text); }
+    #schedule-content h4 { font-size: .85rem; margin: 12px 0 6px; color: var(--muted); }
+    #schedule-content p { font-size: .85rem; line-height: 1.6; margin-bottom: 8px; color: var(--text); }
+    #schedule-content ul, #schedule-content ol { padding-left: 20px; font-size: .85rem; line-height: 1.6; margin-bottom: 8px; }
+    #schedule-content li { margin-bottom: 2px; }
+    #schedule-content table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: .8rem; overflow-x: auto; display: block; }
+    #schedule-content th { background: var(--bg); padding: 8px 10px; text-align: left;
+      border: 1px solid var(--border); font-weight: 700; }
+    #schedule-content td { padding: 7px 10px; border: 1px solid var(--border); vertical-align: top; }
+    #schedule-content tr:nth-child(even) td { background: #fafbfc; }
+    #schedule-content code { font-family: 'SF Mono', 'Fira Code', monospace; font-size: .8em;
+      background: var(--bg); padding: 1px 4px; border-radius: 3px; }
+    #schedule-content blockquote { border-left: 3px solid var(--primary); padding: 6px 12px;
+      margin: 10px 0; background: var(--bg); border-radius: 0 6px 6px 0; }
+    #schedule-content blockquote p { margin-bottom: 0; }
+    #schedule-content strong { font-weight: 700; }
+    #schedule-content a { color: var(--primary); }
+    #schedule-content hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
+    .schedule-day-nav {
+      display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;
+    }
+    .schedule-day-nav a {
+      padding: 6px 14px; border-radius: 20px; text-decoration: none;
+      font-size: .82rem; font-weight: 600; border: 1.5px solid var(--border);
+      background: var(--surface); color: var(--text);
+    }
+    .schedule-day-nav a:hover { border-color: var(--primary); color: var(--primary); }
+
+    /* ── Loading spinner ─────────────────────────────── */
+    #loader { text-align: center; padding: 60px; color: var(--muted); display: none; }
+
+    /* ── Highlight ───────────────────────────────────── */
+    mark { background: #fef08a; color: inherit; border-radius: 2px; padding: 0 1px; }
+
+    /* ── Scroll to top btn ───────────────────────────── */
+    #scroll-top {
+      position: fixed; bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); right: 16px;
+      width: 44px; height: 44px; border-radius: 50%; background: var(--primary);
+      color: white; border: none; cursor: pointer; font-size: 1.2rem;
+      box-shadow: 0 4px 12px rgba(30,64,175,.4); display: none; align-items: center;
+      justify-content: center; z-index: 50;
+    }
+    #scroll-top.visible { display: flex; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <div>
+      <h1>☸ KubeCon EU 2026</h1>
+      <div class="subtitle">Amsterdam · March 23–26</div>
+    </div>
+    <div id="talk-count-badge" style="font-size:.75rem;opacity:.8;font-weight:600;"></div>
+  </div>
+  <nav class="tabs">
+    <button class="tab-btn active" onclick="showTab('talks')">🔍 Talks</button>
+    <button class="tab-btn" onclick="showTab('schedule')">📅 Schedule</button>
+  </nav>
+</header>
+
+<div class="controls" id="talks-controls">
+  <div class="search-wrap">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+    </svg>
+    <input type="search" id="search" placeholder="Search talks, speakers, topics…" autocomplete="off" spellcheck="false">
+    <button id="search-clear" onclick="clearSearch()" aria-label="Clear">✕</button>
+  </div>
+
+  <div class="filter-row days" id="day-filters">
+    <span class="chip day-all active" data-day="">All days</span>
+    <span class="chip day-mon" data-day="Monday">Mon 23</span>
+    <span class="chip day-tue" data-day="Tuesday">Tue 24</span>
+    <span class="chip day-wed" data-day="Wednesday">Wed 25</span>
+    <span class="chip day-thu" data-day="Thursday">Thu 26</span>
+  </div>
+
+  <div class="filter-row" id="tag-filters">
+    <!-- populated by JS -->
+  </div>
+</div>
+
+<div class="results-meta" id="results-meta"></div>
+
+<div id="talks-view">
+  <div class="cards-grid" id="cards-grid"></div>
+  <div class="empty" id="empty-state" style="display:none">
+    <div class="icon">🔭</div>
+    <h3>No talks found</h3>
+    <p>Try adjusting your search or filters.</p>
+  </div>
+</div>
+
+<div id="schedule-view">
+  <div class="schedule-day-nav">
+    <a href="#monday">Monday</a>
+    <a href="#tuesday">Tuesday</a>
+    <a href="#wednesday">Wednesday</a>
+    <a href="#thursday">Thursday</a>
+  </div>
+  <div id="schedule-content">Loading schedule…</div>
+</div>
+
+<button id="scroll-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">↑</button>
+
+<script>
+// ── Tag config ──────────────────────────────────────────
+const TAG_LABELS = {
+  'argocd':        '⚙ ArgoCD',
+  'crossplane':    '🔧 Crossplane',
+  'terraform':     '🏗 Terraform/OTF',
+  'helm':          '⛵ Helm',
+  'keycloak':      '🔑 Keycloak',
+  'otel':          '📡 OTel',
+  'mcp':           '🤖 MCP',
+  'ai-agents':     '🧠 AI Agents',
+  'cilium':        '🐝 Cilium',
+  'gitops':        '🌿 GitOps',
+  'platform-eng':  '🏛 Platform Eng',
+  'multi-tenancy': '🏢 Multi-Tenancy',
+  'cert-manager':  '🔒 cert-manager',
+  'policy':        '📋 Policy',
+  'opa':           '🛡 OPA',
+  'security':      '🔐 Security',
+  'observability': '👁 Observability',
+  'networking':    '🌐 Networking',
+  'identity':      '🪪 Identity',
+  'cost':          '💰 Cost',
+  'backstage':     '🎭 Backstage',
+  'ai':            '✨ AI/ML',
+};
+
+// Priority order for tag display
+const TAG_ORDER = [
+  'argocd','crossplane','terraform','mcp','ai-agents','platform-eng',
+  'keycloak','otel','gitops','cilium','multi-tenancy','policy','opa',
+  'cert-manager','helm','identity','cost','security','observability',
+  'networking','backstage','ai'
+];
+
+// ── State ───────────────────────────────────────────────
+let query = '';
+let selectedDay = '';
+let selectedTags = new Set();
+let expandedCards = new Set();
+let currentTab = 'talks';
+let scheduleLoaded = false;
+let debounceTimer = null;
+
+// ── Init ────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  buildTagFilters();
+  render();
+  document.getElementById('talk-count-badge').textContent = TALKS_DATA.length + ' talks';
+
+  document.getElementById('search').addEventListener('input', (e) => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      query = e.target.value.trim();
+      document.getElementById('search-clear').classList.toggle('visible', query.length > 0);
+      render();
+    }, 180);
+  });
+
+  // Day filter chips
+  document.getElementById('day-filters').addEventListener('click', (e) => {
+    const chip = e.target.closest('.chip[data-day]');
+    if (!chip) return;
+    document.querySelectorAll('#day-filters .chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    selectedDay = chip.dataset.day;
+    render();
+  });
+
+  // Tag filter chips
+  document.getElementById('tag-filters').addEventListener('click', (e) => {
+    const chip = e.target.closest('.chip[data-tag]');
+    if (!chip) return;
+    const tag = chip.dataset.tag;
+    if (selectedTags.has(tag)) {
+      selectedTags.delete(tag);
+      chip.classList.remove('active');
+    } else {
+      selectedTags.add(tag);
+      chip.classList.add('active');
+    }
+    render();
+  });
+
+  // Scroll-to-top
+  window.addEventListener('scroll', () => {
+    document.getElementById('scroll-top').classList.toggle('visible', window.scrollY > 400);
+  }, { passive: true });
+});
+
+function buildTagFilters() {
+  const wrap = document.getElementById('tag-filters');
+  // Get tags that actually exist in data
+  const existing = new Set(TALKS_DATA.flatMap(t => t.tags));
+  TAG_ORDER.filter(t => existing.has(t)).forEach(tag => {
+    const chip = document.createElement('span');
+    chip.className = 'chip tag-chip';
+    chip.dataset.tag = tag;
+    chip.textContent = TAG_LABELS[tag] || '#' + tag;
+    wrap.appendChild(chip);
+  });
+}
+
+// ── Filtering ────────────────────────────────────────────
+function filterTalks() {
+  const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+  return TALKS_DATA.filter(t => {
+    if (selectedDay && t.day !== selectedDay) return false;
+    if (selectedTags.size > 0 && !t.tags.some(tag => selectedTags.has(tag))) return false;
+    if (terms.length > 0) {
+      const hay = `${t.title} ${t.description} ${t.speakers} ${t.orgs} ${t.room} ${t.tags.join(' ')}`.toLowerCase();
+      if (!terms.every(term => hay.includes(term))) return false;
+    }
+    return true;
+  });
+}
+
+// ── Rendering ────────────────────────────────────────────
+function render() {
+  const filtered = filterTalks();
+  const grid = document.getElementById('cards-grid');
+  const empty = document.getElementById('empty-state');
+  const meta = document.getElementById('results-meta');
+
+  meta.textContent = query || selectedDay || selectedTags.size > 0
+    ? `${filtered.length} of ${TALKS_DATA.length} talks`
+    : `${TALKS_DATA.length} talks · 4 days`;
+
+  if (filtered.length === 0) {
+    grid.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  // Group by day+time for display
+  grid.innerHTML = filtered.map(t => cardHTML(t)).join('');
+  // Re-attach expand listeners
+  grid.querySelectorAll('.card').forEach(card => {
+    const id = card.dataset.id;
+    if (expandedCards.has(id)) card.classList.add('expanded');
+    card.addEventListener('click', (e) => {
+      if (e.target.tagName === 'A') return;
+      if (e.target.tagName === 'BUTTON') return;
+      if (!card.classList.contains('expanded')) {
+        expandCard(card, id);
+      }
+    });
+    const expandBtn = card.querySelector('.card-expand-btn');
+    if (expandBtn) expandBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isExpanded = card.classList.contains('expanded');
+      if (isExpanded) collapseCard(card, id);
+      else expandCard(card, id);
+    });
+  });
+}
+
+function expandCard(card, id) {
+  card.classList.add('expanded');
+  expandedCards.add(id);
+  const desc = card.querySelector('.card-desc');
+  if (desc) desc.classList.remove('collapsed');
+  const btn = card.querySelector('.card-expand-btn');
+  if (btn) btn.textContent = '▲ Show less';
+}
+
+function collapseCard(card, id) {
+  card.classList.remove('expanded');
+  expandedCards.delete(id);
+  const desc = card.querySelector('.card-desc');
+  if (desc) desc.classList.add('collapsed');
+  const btn = card.querySelector('.card-expand-btn');
+  if (btn) btn.textContent = '▼ Show more';
+}
+
+function highlight(text, terms) {
+  if (!terms || terms.length === 0) return esc(text);
+  let result = esc(text);
+  terms.filter(Boolean).forEach(term => {
+    const re = new RegExp('(' + term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+    result = result.replace(re, '<mark>$1</mark>');
+  });
+  return result;
+}
+
+function esc(s) {
+  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+const DAY_SHORT = { Monday:'Mon', Tuesday:'Tue', Wednesday:'Wed', Thursday:'Thu' };
+
+function cardHTML(t) {
+  const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const id = t.url || t.title;
+  const isExpanded = expandedCards.has(id);
+  const desc = t.description || '';
+  const hasSched = t.url;
+
+  const tagsHTML = t.tags.map(tag =>
+    `<span class="tag t-${tag}">${TAG_LABELS[tag] || '#'+tag}</span>`
+  ).join('');
+
+  const speakerStr = t.speakers ? t.speakers.replace(/;/g, ' · ') : '';
+  const orgStr = t.orgs ? ' — ' + t.orgs.split(';').slice(0,2).join(', ') : '';
+
+  const levelBadge = t.level ? `<span class="card-type" style="margin-left:4px">${esc(t.level)}</span>` : '';
+
+  return `
+  <div class="card${isExpanded ? ' expanded' : ''}" data-id="${esc(id)}">
+    <div class="card-header day-${esc(t.day)}">
+      <div class="card-meta">
+        <span class="card-time">${esc(DAY_SHORT[t.day]||t.day)} ${esc(t.time_start)}–${esc(t.time_end)}</span>
+        <div>
+          <span class="card-type ${esc(t.type)}">${esc(t.type?.replace(/_/g,' '))}</span>
+          ${levelBadge}
+        </div>
+      </div>
+      <div class="card-title">${highlight(t.title, terms)}</div>
+      <div class="card-room">📍 ${esc(t.room)}</div>
+      ${speakerStr ? `<div class="card-speakers">👤 ${highlight(speakerStr + orgStr, terms)}</div>` : ''}
+    </div>
+    <div class="card-body">
+      ${tagsHTML ? `<div class="card-tags">${tagsHTML}</div>` : ''}
+      ${desc ? `
+        <div class="card-desc${isExpanded ? '' : ' collapsed'}">${highlight(desc, terms)}</div>
+        <button class="card-expand-btn">${isExpanded ? '▲ Show less' : '▼ Show more'}</button>
+      ` : ''}
+      ${hasSched ? `<a class="card-link" href="${esc(t.url)}" target="_blank" rel="noopener">↗ Event page</a>` : ''}
+    </div>
+  </div>`;
+}
+
+// ── Tab switching ─────────────────────────────────────────
+function showTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-btn').forEach((b, i) => {
+    b.classList.toggle('active', (i === 0) === (tab === 'talks'));
+  });
+  document.getElementById('talks-view').style.display = tab === 'talks' ? 'block' : 'none';
+  document.getElementById('talks-controls').style.display = tab === 'talks' ? 'block' : 'none';
+  document.getElementById('results-meta').style.display = tab === 'talks' ? 'block' : 'none';
+  document.getElementById('schedule-view').style.display = tab === 'schedule' ? 'block' : 'none';
+
+  if (tab === 'schedule' && !scheduleLoaded) loadSchedule();
+}
+
+function loadSchedule() {
+  scheduleLoaded = true;
+  fetch('schedule.md')
+    .then(r => r.text())
+    .then(md => {
+      // Add anchor IDs to day headings
+      md = md.replace(/^## (Monday.*)$/m, '<a name="monday"></a>\n## $1')
+             .replace(/^## (Tuesday.*)$/m, '<a name="tuesday"></a>\n## $1')
+             .replace(/^## (Wednesday.*)$/m, '<a name="wednesday"></a>\n## $1')
+             .replace(/^## (Thursday.*)$/m, '<a name="thursday"></a>\n## $1');
+      document.getElementById('schedule-content').innerHTML = marked.parse(md);
+    })
+    .catch(() => {
+      document.getElementById('schedule-content').innerHTML =
+        '<p>Could not load schedule. <a href="schedule.md">View raw file</a></p>';
+    });
+}
+
+function clearSearch() {
+  document.getElementById('search').value = '';
+  document.getElementById('search-clear').classList.remove('visible');
+  query = '';
+  render();
+}
+</script>
+</body>
+</html>
