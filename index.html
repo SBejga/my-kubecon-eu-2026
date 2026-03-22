@@ -49,6 +49,15 @@
     }
     .header-top h1 { font-size: 1.1rem; font-weight: 700; }
     .header-top .subtitle { font-size: .75rem; color: var(--accent); margin-top: 1px; opacity: .85; }
+    
+    /* Data source toggle badge */
+    #talk-count-badge:hover {
+      background: rgba(255,255,255,.2) !important;
+      transform: scale(1.05);
+    }
+    #talk-count-badge:active {
+      transform: scale(.95);
+    }
 
     /* ── Tabs ────────────────────────────────────────── */
     .tabs {
@@ -337,7 +346,7 @@
       <h1>☸ KubeCon EU 2026</h1>
       <div class="subtitle">Amsterdam · March 23–26</div>
     </div>
-    <div id="talk-count-badge" style="font-size:.75rem;opacity:.8;font-weight:600;"></div>
+    <div id="talk-count-badge" style="font-size:.75rem;opacity:.8;font-weight:600;cursor:pointer;padding:4px 8px;border-radius:12px;background:rgba(255,255,255,.1);transition:background .15s;" onclick="toggleDataSource()" title="Click to switch data source"></div>
   </div>
   <nav class="tabs">
     <button class="tab-btn active" onclick="showTab('talks')">🔍 Talks</button>
@@ -451,6 +460,164 @@ const TAG_ORDER = [
   'networking','backstage','ai','social'
 ];
 
+// ── ICS Parser ──────────────────────────────────────────
+function parseICS(icsText) {
+  console.log('🔍 Parsing ICS text, length:', icsText.length);
+  const events = [];
+  const lines = icsText.split('\n').map(line => line.trim());
+  
+  let currentEvent = {};
+  let inEvent = false;
+  let eventCount = 0;
+  
+  for (const line of lines) {
+    if (line === 'BEGIN:VEVENT') {
+      inEvent = true;
+      currentEvent = {};
+      eventCount++;
+    } else if (line === 'END:VEVENT') {
+      if (inEvent) {
+        // Transform ICS event to match YAML structure
+        const event = transformEvent(currentEvent);
+        if (event) {
+          events.push(event);
+        } else {
+          console.log('⚠️ Failed to transform event:', currentEvent.SUMMARY || 'No title');
+        }
+      }
+      inEvent = false;
+      currentEvent = {};
+    } else if (inEvent) {
+      // Parse ICS properties
+      const colonIndex = line.indexOf(':');
+      if (colonIndex > 0) {
+        const key = line.substring(0, colonIndex);
+        let value = line.substring(colonIndex + 1);
+        
+        // Handle multi-line values and escape sequences
+        if (value.includes('\\n')) {
+          value = value.replace(/\\n/g, '\n');
+        }
+        if (value.includes('\\,')) {
+          value = value.replace(/\\,/g, ',');
+        }
+        
+        currentEvent[key] = value;
+      }
+    }
+  }
+  
+  console.log(`📊 Found ${eventCount} VEVENT blocks, transformed ${events.length} events`);
+  return events;
+}
+
+function transformEvent(icsEvent) {
+  if (!icsEvent.DTSTART || !icsEvent.SUMMARY) {
+    console.log('⚠️ Skipping event, missing DTSTART or SUMMARY:', {
+      hasDTSTART: !!icsEvent.DTSTART,
+      hasSUMMARY: !!icsEvent.SUMMARY,
+      keys: Object.keys(icsEvent)
+    });
+    return null; // Skip events without required fields
+  }
+  
+  // Parse datetime
+  const startDate = parseICSDateTime(icsEvent.DTSTART);
+  const endDate = parseICSDateTime(icsEvent.DTEND);
+  
+  if (!startDate) {
+    console.log('⚠️ Failed to parse start date:', icsEvent.DTSTART);
+    return null;
+  }
+  
+  // Determine day name
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const dayName = dayNames[startDate.getDay()];
+  
+  // Format times
+  const timeStart = startDate.toTimeString().substring(0, 5); // HH:MM
+  const timeEnd = endDate ? endDate.toTimeString().substring(0, 5) : timeStart;
+  
+  // Extract event type from categories or title
+  let type = 'talk'; // default
+  const title = icsEvent.SUMMARY || '';
+  
+  if (title.includes('Keynote')) type = 'keynote';
+  else if (title.includes('Sponsored Keynote')) type = 'sponsored_keynote';
+  else if (title.includes('⚡') || title.includes('Lightning')) type = 'lightning_talk';
+  else if (title.includes('Panel')) type = 'panel';
+  else if (title.includes('Welcome') || title.includes('Opening Remarks')) type = 'opening_remarks';
+  else if (icsEvent.CATEGORIES && icsEvent.CATEGORIES.toLowerCase().includes('registration')) type = 'opening_remarks';
+  
+  // Extract track from title
+  let track = '';
+  if (title.includes(' | ')) {
+    track = title.split(' | ')[0].trim();
+  }
+  
+  // Parse speakers from title (after " - ")
+  let speakers = '';
+  const speakerMatch = title.match(/ - ([^|]+?)(?:\s*\||$)/);
+  if (speakerMatch) {
+    speakers = speakerMatch[1].trim();
+  }
+  
+  // Extract tags based on track and content
+  const tags = [];
+  const trackLower = track.toLowerCase();
+  const titleLower = title.toLowerCase();
+  
+  if (trackLower.includes('argo') || titleLower.includes('argo')) tags.push('argocd');
+  if (trackLower.includes('backstage') || titleLower.includes('backstage')) tags.push('backstage');
+  if (trackLower.includes('ai') || trackLower.includes('kubeflow') || titleLower.includes(' ai ')) tags.push('ai');
+  if (trackLower.includes('security') || titleLower.includes('security')) tags.push('security');
+  if (trackLower.includes('observability') || titleLower.includes('observability')) tags.push('observability');
+  if (trackLower.includes('platform') || titleLower.includes('platform engineering')) tags.push('platform-eng');
+  if (trackLower.includes('gitops') || trackLower.includes('flux') || titleLower.includes('gitops')) tags.push('gitops');
+  if (trackLower.includes('keycloak') || titleLower.includes('keycloak')) tags.push('keycloak', 'identity');
+  if (trackLower.includes('telco')) tags.push('networking');
+  if (trackLower.includes('edge')) tags.push('networking');
+  if (trackLower.includes('wasm')) tags.push('networking');
+  if (titleLower.includes('mcp') || titleLower.includes('model context protocol')) tags.push('mcp');
+  if (titleLower.includes('ai agent') || titleLower.includes('agentic')) tags.push('ai-agents');
+  if (titleLower.includes('otel') || titleLower.includes('opentelemetry')) tags.push('otel');
+  if (titleLower.includes('helm')) tags.push('helm');
+  if (titleLower.includes('terraform')) tags.push('terraform');
+  if (titleLower.includes('crossplane')) tags.push('crossplane');
+  if (titleLower.includes('cilium')) tags.push('cilium');
+  
+  const event = {
+    day: dayName,
+    date: startDate.toISOString().split('T')[0], // YYYY-MM-DD
+    time_start: timeStart,
+    time_end: timeEnd,
+    type: type,
+    title: title,
+    speakers: speakers,
+    orgs: '', // Not easily extractable from ICS
+    room: icsEvent.LOCATION ? icsEvent.LOCATION.replace(/\\,/g, ',') : '',
+    track: track,
+    level: '', // Not in ICS format
+    description: icsEvent.DESCRIPTION ? icsEvent.DESCRIPTION.replace(/\\n/g, '\n').replace(/\\,/g, ',') : '',
+    url: icsEvent.URL || '',
+    tags: [...new Set(tags)] // Remove duplicates
+  };
+  
+  console.log('✅ Transformed event:', event.title);
+  return event;
+}
+
+function parseICSDateTime(icsDateTime) {
+  if (!icsDateTime) return null;
+  
+  // Parse YYYYMMDDTHHMMSSZ format
+  const match = icsDateTime.match(/(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/);
+  if (!match) return null;
+  
+  const [, year, month, day, hour, minute, second] = match;
+  return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}Z`);
+}
+
 // ── State ───────────────────────────────────────────────
 let query = '';
 let selectedDay = '';
@@ -463,6 +630,7 @@ let debounceTimer = null;
 let hidePast = false;
 let selectedPriorities = new Set(); // talks tab priority filter
 let schedDay = '';  // schedule tab day filter
+let dataSource = 'ics'; // 'ics' or 'yaml' - current data source
 
 const CONF_DATES = { Monday:'2026-03-23', Tuesday:'2026-03-24', Wednesday:'2026-03-25', Thursday:'2026-03-26' };
 
@@ -472,17 +640,92 @@ function isPast(t) {
   return new Date(`${d}T${t.time_end}:00`) < new Date();
 }
 
-// ── Init ────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  fetch('data.yaml')
-    .then(r => r.text())
-    .then(text => {
-      TALKS_DATA.push(...jsyaml.load(text));
+// ── Data Loading Functions ──────────────────────────────
+function loadData() {
+  // Clear existing data
+  TALKS_DATA.length = 0;
+  
+  if (dataSource === 'ics') {
+    loadICSData();
+  } else {
+    loadYAMLData();
+  }
+}
+
+function loadICSData() {
+  fetch('current-schedule.ics')
+    .then(r => {
+      if (!r.ok) throw new Error('ICS not found');
+      return r.text();
+    })
+    .then(icsText => {
+      console.log('📅 Loading events from current-schedule.ics');
+      const icsEvents = parseICS(icsText);
+      console.log(`✅ Parsed ${icsEvents.length} events from ICS`);
+      TALKS_DATA.push(...icsEvents);
       TALKS_DATA.push(...SOCIAL_EVENTS);
-      buildTagFilters();
-      loadPriorities();
-      render();
-      document.getElementById('talk-count-badge').textContent = TALKS_DATA.length + ' talks';
+      finishDataLoad();
+    })
+    .catch(err => {
+      console.error('❌ Failed to load ICS data:', err);
+      updateBadge('ICS Load Failed');
+    });
+}
+
+function loadYAMLData() {
+  fetch('data.yaml')
+    .then(r => {
+      if (!r.ok) throw new Error('YAML not found');
+      return r.text();
+    })
+    .then(text => {
+      console.log('📊 Loading events from data.yaml');
+      const yamlEvents = jsyaml.load(text);
+      console.log(`✅ Parsed ${yamlEvents.length} events from YAML`);
+      TALKS_DATA.push(...yamlEvents);
+      TALKS_DATA.push(...SOCIAL_EVENTS);
+      finishDataLoad();
+    })
+    .catch(err => {
+      console.error('❌ Failed to load YAML data:', err);
+      updateBadge('YAML Load Failed');
+    });
+}
+
+function finishDataLoad() {
+  buildTagFilters();
+  loadPriorities();
+  render();
+  updateBadge();
+}
+
+function updateBadge(customText) {
+  const badge = document.getElementById('talk-count-badge');
+  if (customText) {
+    badge.textContent = customText;
+    return;
+  }
+  
+  const sourceIcon = dataSource === 'ics' ? '📅' : '📊';
+  const sourceName = dataSource === 'ics' ? 'ICS' : 'YAML';
+  badge.textContent = `${sourceIcon} ${TALKS_DATA.length} talks (${sourceName})`;
+}
+
+function toggleDataSource() {
+  // Toggle between data sources
+  dataSource = dataSource === 'ics' ? 'yaml' : 'ics';
+  
+  // Show loading state
+  updateBadge('Loading...');
+  
+  // Reload data with new source
+  loadData();
+  
+  console.log(`🔄 Switched to ${dataSource.toUpperCase()} data source`);
+}
+document.addEventListener('DOMContentLoaded', () => {
+  // Load initial data (default to ICS)
+  loadData();
 
   document.getElementById('search').addEventListener('input', (e) => {
     clearTimeout(debounceTimer);
@@ -539,11 +782,6 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('scroll', () => {
     document.getElementById('scroll-top').classList.toggle('visible', window.scrollY > 400);
   }, { passive: true });
-    })
-    .catch(err => {
-      console.error('Failed to load data.yaml:', err);
-      document.getElementById('cards-grid').innerHTML = '<p style="padding:16px;color:var(--muted)">Failed to load talk data. Please refresh the page.</p>';
-    });
 });
 
 // ── Priority loading ──────────────────────────────────────
