@@ -1,0 +1,197 @@
+name: KubeCon Schedule Monitor
+
+on:
+  schedule:
+    # Run every hour at minute 0
+    - cron: '0 * * * *'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  check-schedule-changes:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+      
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up timezone and date formatting
+      run: |
+        # Set timezone to conference location (Amsterdam)
+        sudo timedatectl set-timezone Europe/Amsterdam
+        
+        # Format current date and time
+        CURRENT_DATE=$(date '+%A %H:%M')
+        CURRENT_ISO=$(date '+%Y-%m-%d %H:%M')
+        CURRENT_FILENAME=$(date '+%Y-%m-%d-%H%M')
+        
+        echo "CURRENT_DATE=$CURRENT_DATE" >> $GITHUB_ENV
+        echo "CURRENT_ISO=$CURRENT_ISO" >> $GITHUB_ENV  
+        echo "CURRENT_FILENAME=$CURRENT_FILENAME" >> $GITHUB_ENV
+        
+        echo "Current time (Amsterdam): $CURRENT_DATE"
+        
+    - name: Download current schedule
+      run: |
+        echo "Downloading latest schedule from sched.com..."
+        curl -o "current-schedule.ics" -f "https://kccnceu2026.sched.com/all.ics"
+        
+        # Get file size for logging
+        CURRENT_SIZE=$(wc -c < current-schedule.ics)
+        echo "Downloaded schedule size: $CURRENT_SIZE bytes"
+        
+    - name: Compare with baseline
+      id: compare
+      run: |
+        BASELINE_FILE="2026-03-22-14:08-all.ics"
+        
+        if [ ! -f "$BASELINE_FILE" ]; then
+          echo "❌ Baseline file $BASELINE_FILE not found!"
+          exit 1
+        fi
+        
+        BASELINE_SIZE=$(wc -c < "$BASELINE_FILE")
+        CURRENT_SIZE=$(wc -c < "current-schedule.ics")
+        
+        echo "Baseline size: $BASELINE_SIZE bytes"
+        echo "Current size:  $CURRENT_SIZE bytes"
+        
+        if ! cmp -s "$BASELINE_FILE" "current-schedule.ics"; then
+          echo "📅 Changes detected in KubeCon schedule!"
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+          
+          # Generate diff summary
+          echo "Generating change summary..."
+          
+          # Count event changes
+          BASELINE_EVENTS=$(grep -c "BEGIN:VEVENT" "$BASELINE_FILE" || echo "0")
+          CURRENT_EVENTS=$(grep -c "BEGIN:VEVENT" "current-schedule.ics" || echo "0")
+          EVENT_DIFF=$((CURRENT_EVENTS - BASELINE_EVENTS))
+          
+          echo "EVENT_DIFF=$EVENT_DIFF" >> $GITHUB_ENV
+          echo "BASELINE_EVENTS=$BASELINE_EVENTS" >> $GITHUB_ENV
+          echo "CURRENT_EVENTS=$CURRENT_EVENTS" >> $GITHUB_ENV
+          
+          # Generate detailed diff for new events if any added
+          if [ $EVENT_DIFF -gt 0 ]; then
+            echo "📝 Extracting new events..."
+            
+            # Extract new event summaries (this is a simple approach)
+            diff -u "$BASELINE_FILE" "current-schedule.ics" | \
+              grep "^+SUMMARY:" | \
+              sed 's/^+SUMMARY://' | \
+              head -20 > new_events.txt
+              
+            if [ -s new_events.txt ]; then
+              echo "NEW_EVENTS_FOUND=true" >> $GITHUB_ENV
+            fi
+          fi
+          
+          # Save size diff info
+          SIZE_DIFF=$((CURRENT_SIZE - BASELINE_SIZE))
+          echo "SIZE_DIFF=$SIZE_DIFF" >> $GITHUB_ENV
+          
+        else
+          echo "✅ No changes detected in schedule"
+          echo "has_changes=false" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Update changes log
+      if: steps.compare.outputs.has_changes == 'true'
+      run: |
+        echo "📝 Updating updates.md with detected changes..."
+        
+        # Create updates.md if it doesn't exist
+        if [ ! -f "updates.md" ]; then
+          cat > updates.md << 'EOF'
+        # KubeCon EU 2026 Schedule Changes
+        
+        This file tracks changes to the conference schedule detected by automated monitoring.
+        
+        ---
+        
+        EOF
+        fi
+        
+        # Prepare change entry
+        CHANGE_ENTRY=$(cat << EOF
+        
+        ## $CURRENT_DATE ($CURRENT_ISO)
+        
+        **Schedule Update Detected:**
+        
+        - **Events**: $CURRENT_EVENTS (was $BASELINE_EVENTS, ${EVENT_DIFF:+0} change)
+        - **File Size**: $(numfmt --to=iec $(($(wc -c < current-schedule.ics)))) (${SIZE_DIFF:+0} bytes difference)
+        - **Detection Time**: $CURRENT_ISO (Amsterdam time)
+        EOF
+        )
+        
+        # Add new events info if available
+        if [ "$NEW_EVENTS_FOUND" = "true" ] && [ -f new_events.txt ]; then
+          CHANGE_ENTRY="$CHANGE_ENTRY"$'\n\n**New Events Added:**\n'
+          while IFS= read -r event; do
+            CHANGE_ENTRY="$CHANGE_ENTRY"$'\n'"- $event"
+          done < new_events.txt
+        fi
+        
+        # Add change summary
+        if [ $EVENT_DIFF -gt 0 ]; then
+          CHANGE_ENTRY="$CHANGE_ENTRY"$'\n\n**Summary**: 🆕 '"$EVENT_DIFF new events added to schedule"
+        elif [ $EVENT_DIFF -lt 0 ]; then
+          CHANGE_ENTRY="$CHANGE_ENTRY"$'\n\n**Summary**: ❌ '$((-EVENT_DIFF))' events removed from schedule'
+        else
+          CHANGE_ENTRY="$CHANGE_ENTRY"$'\n\n**Summary**: 📝 Event details updated (same event count)'
+        fi
+        
+        # Insert the new entry after the header (line 5)
+        {
+          head -5 updates.md
+          echo "$CHANGE_ENTRY"
+          tail -n +6 updates.md
+        } > updates_temp.md
+        
+        mv updates_temp.md updates.md
+        
+        echo "✅ Updated updates.md"
+        
+    - name: Archive current schedule  
+      if: steps.compare.outputs.has_changes == 'true'
+      run: |
+        # Archive the new version with timestamp
+        cp current-schedule.ics "${CURRENT_FILENAME}-all.ics"
+        echo "📦 Archived current schedule as ${CURRENT_FILENAME}-all.ics"
+        
+    - name: Commit and push changes
+      if: steps.compare.outputs.has_changes == 'true'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "Schedule Monitor"
+        
+        git add updates.md "${CURRENT_FILENAME}-all.ics"
+        
+        # Create commit message with change summary
+        if [ $EVENT_DIFF -gt 0 ]; then
+          COMMIT_MSG="📅 Schedule update: +$EVENT_DIFF events ($CURRENT_DATE)"
+        elif [ $EVENT_DIFF -lt 0 ]; then
+          COMMIT_MSG="📅 Schedule update: $((-EVENT_DIFF)) events ($CURRENT_DATE)" 
+        else
+          COMMIT_MSG="📅 Schedule update: event details changed ($CURRENT_DATE)"
+        fi
+        
+        git commit -m "$COMMIT_MSG"
+        git push
+        
+        echo "✅ Changes committed and pushed to main branch"
+        
+    - name: Summary
+      if: always()
+      run: |
+        if [ "${{ steps.compare.outputs.has_changes }}" = "true" ]; then
+          echo "🎯 Summary: Changes detected and logged to updates.md"
+          echo "📊 Event change: $EVENT_DIFF events"
+          echo "💾 Size change: $SIZE_DIFF bytes"
+        else
+          echo "✅ Summary: No changes detected in schedule"
+        fi
