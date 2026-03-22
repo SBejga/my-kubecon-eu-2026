@@ -19,7 +19,7 @@ The **Schedule Monitor** GitHub Action (`schedule-monitor.yml`) automatically:
 
 ### Local Script
 
-The local bash script (`monitor-schedule.sh`) can be run manually and:
+The local bash script (`check-ics-updates.sh`) can be run manually and:
 
 - **📥 Downloads** the latest schedule from https://kccnceu2026.sched.com/all.ics (ICS format)
 - **🔍 Compares** it with the baseline schedule to detect changes  
@@ -31,10 +31,10 @@ The local bash script (`monitor-schedule.sh`) can be run manually and:
 
 ```bash
 # Make sure the script is executable (one time setup)
-chmod +x monitor-schedule.sh
+chmod +x check-ics-updates.sh
 
 # Run the monitor
-./monitor-schedule.sh
+./check-ics-updates.sh
 ```
 
 ### Benefits
