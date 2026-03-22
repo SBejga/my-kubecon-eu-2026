@@ -25,7 +25,7 @@ The local bash script (`check-ics-updates.sh`) can be run manually and:
 - **🔍 Compares** it with the baseline schedule to detect changes  
 - **📝 Logs changes** to [updates.md](updates.md) with detailed information
 - **📦 Archives** each version with timestamps (e.g., `2026-03-22-1408-all.ics`)
-- **🚀 Commits & pushes** changes automatically to the main branch
+- **⚠️ Requires manual commit** - files are prepared but not automatically committed
 
 ### Running the monitor
 
@@ -35,14 +35,21 @@ chmod +x check-ics-updates.sh
 
 # Run the monitor
 ./check-ics-updates.sh
+
+# If changes are detected, manually commit them:
+git add updates.md *-all.ics
+git commit -m "📅 Schedule update detected"
+git push
 ```
 
 ### Benefits
 
-- **Run when needed** - execute manually or set up your own cron schedule
+- **Automated monitoring** - GitHub Actions runs every 4 hours and commits changes automatically  
+- **Manual verification** - Local script allows you to review changes before committing
 - **Complete history** - every schedule version is archived with timestamps
 - **Detailed change tracking** - see exactly what changed and when
 - **Timezone awareness** - all timestamps use Amsterdam time (conference timezone)
+- **Dual format support** - HTML (GitHub Actions) and ICS (local script) monitoring
 - **Local control** - no dependency on GitHub Actions infrastructure
 
 The script includes retry logic and browser-like headers to avoid rate limiting issues.

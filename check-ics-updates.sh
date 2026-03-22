@@ -8,6 +8,9 @@ set -e  # Exit on any error
 echo "🔍 KubeCon EU 2026 Schedule Monitor"
 echo "=================================="
 
+# baseline file name
+export BASELINE_FILE="2026-03-22-14:08-all.ics"
+
 # Set timezone to conference location (Amsterdam)
 export TZ="Europe/Amsterdam"
 
@@ -62,8 +65,6 @@ echo "Downloaded schedule size: $CURRENT_SIZE bytes"
 # Compare with baseline
 echo ""
 echo "🔍 Comparing with baseline..."
-
-BASELINE_FILE="2026-03-22-14:08-all.ics"
 
 if [ ! -f "$BASELINE_FILE" ]; then
   echo "❌ Baseline file $BASELINE_FILE not found!"
@@ -178,25 +179,11 @@ EOF
   cp current-schedule.ics "${CURRENT_FILENAME}-all.ics"
   echo "📦 Archived current schedule as ${CURRENT_FILENAME}-all.ics"
   
-  # Commit and push changes
   echo ""
-  echo "📤 Committing and pushing changes..."
-  
-  git add updates.md "${CURRENT_FILENAME}-all.ics"
-  
-  # Create commit message with change summary
-  if [ $EVENT_DIFF -gt 0 ]; then
-    COMMIT_MSG="📅 Schedule update: +$EVENT_DIFF events ($CURRENT_DATE)"
-  elif [ $EVENT_DIFF -lt 0 ]; then
-    COMMIT_MSG="📅 Schedule update: $((-EVENT_DIFF)) events ($CURRENT_DATE)" 
-  else
-    COMMIT_MSG="📅 Schedule update: event details changed ($CURRENT_DATE)"
-  fi
-  
-  git commit -m "$COMMIT_MSG"
-  git push
-  
-  echo "✅ Changes committed and pushed to main branch"
+  echo "✅ Changes detected and logged to updates.md"
+  echo "⚠️  Manual commit required - files staged but not committed:"
+  echo "   - updates.md"
+  echo "   - ${CURRENT_FILENAME}-all.ics"
   
   # Clean up temporary files
   rm -f new_events.txt current-schedule.ics
@@ -214,6 +201,7 @@ if [ "$HAS_CHANGES" = "true" ]; then
   echo "Changes detected and logged to updates.md"
   echo "📊 Event change: $EVENT_DIFF events"
   echo "💾 Size change: $SIZE_DIFF bytes"
+  echo "⚠️  Manual git commit required"
 else
   echo "No changes detected in schedule"
 fi
