@@ -9,7 +9,7 @@ echo "🔍 KubeCon EU 2026 Schedule Monitor"
 echo "=================================="
 
 # baseline file name
-export BASELINE_FILE="2026-03-22-14:08-all.ics"
+export BASELINE_FILE="2026-03-22-1408-all.ics"
 
 # Set timezone to conference location (Amsterdam)
 export TZ="Europe/Amsterdam"
@@ -25,11 +25,21 @@ echo ""
 # Download current schedule
 echo "📥 Downloading latest schedule from sched.com..."
 
+# Check if we already have a current schedule file
+if [ -f "current-schedule.ics" ]; then
+  echo "📄 Found existing current-schedule.ics, checking for updates..."
+  CONDITIONAL_FLAG="-z current-schedule.ics"
+else
+  echo "📄 No existing schedule file, downloading fresh copy..."
+  CONDITIONAL_FLAG=""
+fi
+
 # Try download with browser headers and retry logic
+DOWNLOAD_OCCURRED=false
 for attempt in 1 2 3; do
   echo "Attempt $attempt/3..."
   
-  if curl -o "current-schedule.ics" -f -L \
+  if curl -o "current-schedule.ics" -f -L $CONDITIONAL_FLAG \
     --user-agent "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
     --header "Accept: text/calendar,application/octet-stream,*/*;q=0.9" \
     --header "Accept-Language: en-US,en;q=0.9" \
@@ -43,24 +53,43 @@ for attempt in 1 2 3; do
     "https://kccnceu2026.sched.com/all.ics"; then
     
     echo "✅ Download successful"
+    DOWNLOAD_OCCURRED=true
     break
   else
-    echo "❌ Attempt $attempt failed"
-    if [ $attempt -eq 3 ]; then
-      echo "🚨 All download attempts failed. Possible causes:"
-      echo "- IP range blocked by sched.com"
-      echo "- Rate limiting"
-      echo "- Service temporarily unavailable"
-      exit 1
+    CURL_EXIT_CODE=$?
+    if [ $CURL_EXIT_CODE -eq 22 ]; then
+      echo "✅ Remote file not modified since last download"
+      DOWNLOAD_OCCURRED=false
+      break
+    else
+      echo "❌ Attempt $attempt failed (exit code: $CURL_EXIT_CODE)"
+      if [ $attempt -eq 3 ]; then
+        echo "🚨 All download attempts failed. Possible causes:"
+        echo "- IP range blocked by sched.com"
+        echo "- Rate limiting"
+        echo "- Service temporarily unavailable"
+        exit 1
+      fi
+      echo "Waiting 10 seconds before retry..."
+      sleep 10
     fi
-    echo "Waiting 10 seconds before retry..."
-    sleep 10
   fi
 done
 
 # Get file size for logging
 CURRENT_SIZE=$(wc -c < current-schedule.ics)
 echo "Downloaded schedule size: $CURRENT_SIZE bytes"
+
+# If no download occurred, we can skip comparison if we want
+if [ "$DOWNLOAD_OCCURRED" = "false" ]; then
+  echo ""
+  echo "✅ Remote file not modified - no comparison needed"
+  echo ""
+  echo "🎯 Summary: No remote changes detected"
+  echo ""
+  echo "Monitor completed at $(date '+%Y-%m-%d %H:%M:%S')"
+  exit 0
+fi
 
 # Compare with baseline
 echo ""
@@ -186,12 +215,11 @@ EOF
   echo "   - ${CURRENT_FILENAME}-all.ics"
   
   # Clean up temporary files
-  rm -f new_events.txt current-schedule.ics
+  rm -f new_events.txt
   
 else
   echo ""
   echo "✅ No changes to commit"
-  rm -f current-schedule.ics
 fi
 
 # Summary

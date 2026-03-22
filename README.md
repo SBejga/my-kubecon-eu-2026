@@ -22,6 +22,8 @@ The **Schedule Monitor** GitHub Action (`schedule-monitor.yml`) automatically:
 The local bash script (`check-ics-updates.sh`) can be run manually and:
 
 - **📥 Downloads** the latest schedule from https://kccnceu2026.sched.com/all.ics (ICS format)
+- **⚡ Smart downloading** - only downloads when remote file has been modified
+- **💾 Keeps local copy** - maintains `current-schedule.ics` for future comparisons
 - **🔍 Compares** it with the baseline schedule to detect changes  
 - **📝 Logs changes** to [updates.md](updates.md) with detailed information
 - **📦 Archives** each version with timestamps (e.g., `2026-03-22-1408-all.ics`)
@@ -46,6 +48,7 @@ git push
 
 - **Automated monitoring** - GitHub Actions runs every 4 hours and commits changes automatically  
 - **Manual verification** - Local script allows you to review changes before committing
+- **Efficient downloads** - Only downloads when remote files have actually changed
 - **Complete history** - every schedule version is archived with timestamps
 - **Detailed change tracking** - see exactly what changed and when
 - **Timezone awareness** - all timestamps use Amsterdam time (conference timezone)
