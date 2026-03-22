@@ -167,6 +167,7 @@ jobs:
         - **Events**: $CURRENT_EVENTS (was $BASELINE_EVENTS, ${EVENT_DIFF:+0} change)
         - **File Size**: $(numfmt --to=iec $(($(wc -c < current-schedule.html)))) (${SIZE_DIFF:+0} bytes difference)
         - **Detection Time**: $CURRENT_ISO (Amsterdam time)
+        - **Detection Source**: ⚙️ GitHub Actions (schedule-monitor.yml)
         EOF
         )
         
@@ -187,14 +188,8 @@ jobs:
           CHANGE_ENTRY="$CHANGE_ENTRY"$'\n\n**Summary**: 📝 Event details updated (same event count)'
         fi
         
-        # Insert the new entry after the header (line 5)
-        {
-          head -5 updates.md
-          echo "$CHANGE_ENTRY"
-          tail -n +6 updates.md
-        } > updates_temp.md
-        
-        mv updates_temp.md updates.md
+        # Append the new entry to the end of the file
+        echo "$CHANGE_ENTRY" >> updates.md
         
         echo "✅ Updated updates.md"
         
