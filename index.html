@@ -293,6 +293,24 @@
     #schedule-content a { color: var(--primary); }
     #schedule-content hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
 
+    /* ── Updates view ────────────────────────────────── */
+    #updates-content h1 { font-size: 1.3rem; margin-bottom: 8px; }
+    #updates-content h2 { font-size: 1.1rem; margin: 24px 0 10px; padding-bottom: 6px;
+      border-bottom: 3px solid var(--accent); color: var(--primary); }
+    #updates-content h3 { font-size: .95rem; margin: 16px 0 8px; color: var(--text); }
+    #updates-content h4 { font-size: .85rem; margin: 12px 0 6px; color: var(--muted); }
+    #updates-content p { font-size: .85rem; line-height: 1.6; margin-bottom: 8px; color: var(--text); }
+    #updates-content ul, #updates-content ol { padding-left: 20px; font-size: .85rem; line-height: 1.6; margin-bottom: 8px; }
+    #updates-content li { margin-bottom: 2px; }
+    #updates-content code { font-family: 'SF Mono', 'Fira Code', monospace; font-size: .8em;
+      background: var(--bg); padding: 1px 4px; border-radius: 3px; }
+    #updates-content blockquote { border-left: 3px solid var(--primary); padding: 6px 12px;
+      margin: 10px 0; background: var(--bg); border-radius: 0 6px 6px 0; }
+    #updates-content blockquote p { margin-bottom: 0; }
+    #updates-content strong { font-weight: 700; }
+    #updates-content a { color: var(--primary); }
+    #updates-content hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
 
     /* ── Loading spinner ─────────────────────────────── */
     #loader { text-align: center; padding: 60px; color: var(--muted); display: none; }
@@ -324,6 +342,7 @@
   <nav class="tabs">
     <button class="tab-btn active" onclick="showTab('talks')">🔍 Talks</button>
     <button class="tab-btn" onclick="showTab('schedule')">📅 Schedule</button>
+    <button class="tab-btn" onclick="showTab('updates')">🔄 Updates</button>
   </nav>
 </header>
 
@@ -373,6 +392,10 @@
 
 <div id="schedule-view">
   <div id="schedule-content">Loading schedule…</div>
+</div>
+
+<div id="updates-view" style="display: none; padding: 16px 16px 80px; max-width: 900px; margin: 0 auto;">
+  <div id="updates-content" style="background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); padding: 20px 16px; box-shadow: var(--shadow);">Loading updates…</div>
 </div>
 
 <button id="scroll-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">↑</button>
@@ -435,6 +458,7 @@ let selectedTags = new Set();
 let expandedCards = new Set();
 let currentTab = 'talks';
 let scheduleLoaded = false;
+let updatesLoaded = false;
 let debounceTimer = null;
 let hidePast = false;
 let selectedPriorities = new Set(); // talks tab priority filter
@@ -713,14 +737,19 @@ function cardHTML(t) {
 function showTab(tab) {
   currentTab = tab;
   document.querySelectorAll('.tab-btn').forEach((b, i) => {
-    b.classList.toggle('active', (i === 0) === (tab === 'talks'));
+    b.classList.remove('active');
+    if ((i === 0 && tab === 'talks') || (i === 1 && tab === 'schedule') || (i === 2 && tab === 'updates')) {
+      b.classList.add('active');
+    }
   });
   document.getElementById('talks-view').style.display = tab === 'talks' ? 'block' : 'none';
   document.getElementById('talks-controls').style.display = tab === 'talks' ? 'block' : 'none';
   document.getElementById('results-meta').style.display = tab === 'talks' ? 'block' : 'none';
   document.getElementById('schedule-view').style.display = tab === 'schedule' ? 'block' : 'none';
+  document.getElementById('updates-view').style.display = tab === 'updates' ? 'block' : 'none';
 
   if (tab === 'schedule' && !scheduleLoaded) loadSchedule();
+  if (tab === 'updates' && !updatesLoaded) loadUpdates();
 }
 
 function loadSchedule() {
@@ -739,6 +768,19 @@ function loadSchedule() {
     .catch(() => {
       document.getElementById('schedule-content').innerHTML =
         '<p>Could not load schedule. <a href="schedule.md">View raw file</a></p>';
+    });
+}
+
+function loadUpdates() {
+  updatesLoaded = true;
+  fetch('updates.md')
+    .then(r => r.text())
+    .then(md => {
+      document.getElementById('updates-content').innerHTML = marked.parse(md);
+    })
+    .catch(() => {
+      document.getElementById('updates-content').innerHTML =
+        '<p>Could not load updates. <a href="updates.md">View raw file</a></p>';
     });
 }
 

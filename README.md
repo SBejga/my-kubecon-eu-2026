@@ -4,31 +4,48 @@ This is my schedule for KubeCon EU 2026. It includes the sessions I plan to atte
 
 ## Automated Schedule Monitoring
 
-This repository includes an automated GitHub Actions workflow that monitors the KubeCon EU 2026 schedule for changes and updates.
+This repository includes both a GitHub Actions workflow and a local bash script for monitoring the KubeCon EU 2026 schedule for changes.
 
-### How it works
+### GitHub Actions Workflow
 
 The **Schedule Monitor** GitHub Action (`schedule-monitor.yml`) automatically:
 
-- **🕒 Runs every hour** to check for schedule changes
-- **📥 Downloads** the latest schedule from https://kccnceu2026.sched.com/all.ics
+- **🕒 Runs every 4 hours** to check for schedule changes
+- **📥 Downloads** the latest schedule from https://kccnceu2026.sched.com/print (HTML format)
 - **🔍 Compares** it with the baseline schedule to detect changes
-- **📝 Logs changes** to [updates.md](updates.md) with detailed information including:
-  - Event count changes (additions/removals)
-  - File size differences
-  - Timestamps in Amsterdam timezone
-  - List of new events when applicable
+- **📝 Logs changes** to [updates.md](updates.md) with detailed information
+- **📦 Archives** each version with timestamps (e.g., `2026-03-22-1408-print.html`)
+- **🚀 Commits & pushes** changes automatically to the main branch
+
+### Local Script
+
+The local bash script (`monitor-schedule.sh`) can be run manually and:
+
+- **📥 Downloads** the latest schedule from https://kccnceu2026.sched.com/all.ics (ICS format)
+- **🔍 Compares** it with the baseline schedule to detect changes  
+- **📝 Logs changes** to [updates.md](updates.md) with detailed information
 - **📦 Archives** each version with timestamps (e.g., `2026-03-22-1408-all.ics`)
 - **🚀 Commits & pushes** changes automatically to the main branch
 
+### Running the monitor
+
+```bash
+# Make sure the script is executable (one time setup)
+chmod +x monitor-schedule.sh
+
+# Run the monitor
+./monitor-schedule.sh
+```
+
 ### Benefits
 
-- **No manual checking needed** - get notified of schedule updates automatically
+- **Run when needed** - execute manually or set up your own cron schedule
 - **Complete history** - every schedule version is archived with timestamps
 - **Detailed change tracking** - see exactly what changed and when
 - **Timezone awareness** - all timestamps use Amsterdam time (conference timezone)
+- **Local control** - no dependency on GitHub Actions infrastructure
 
-You can trigger the workflow manually from the Actions tab or wait for the hourly automatic runs.
+The script includes retry logic and browser-like headers to avoid rate limiting issues.
 
 ## Build & Usage
 
