@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#213A3E">
   <title>KubeCon EU 2026 · Talk Browser</title>
-  <script src="data.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/js-yaml@4/dist/js-yaml.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -378,6 +378,9 @@
 <button id="scroll-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">↑</button>
 
 <script>
+// ── Talks data (populated asynchronously from data.yaml) ─
+let TALKS_DATA = [];
+
 // ── Tag config ──────────────────────────────────────────
 // Social / networking events not in sched.com — injected manually
 const SOCIAL_EVENTS = [
@@ -447,11 +450,15 @@ function isPast(t) {
 
 // ── Init ────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  TALKS_DATA.push(...SOCIAL_EVENTS);
-  buildTagFilters();
-  loadPriorities();
-  render();
-  document.getElementById('talk-count-badge').textContent = TALKS_DATA.length + ' talks';
+  fetch('data.yaml')
+    .then(r => r.text())
+    .then(text => {
+      TALKS_DATA.push(...jsyaml.load(text));
+      TALKS_DATA.push(...SOCIAL_EVENTS);
+      buildTagFilters();
+      loadPriorities();
+      render();
+      document.getElementById('talk-count-badge').textContent = TALKS_DATA.length + ' talks';
 
   document.getElementById('search').addEventListener('input', (e) => {
     clearTimeout(debounceTimer);
@@ -508,6 +515,11 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('scroll', () => {
     document.getElementById('scroll-top').classList.toggle('visible', window.scrollY > 400);
   }, { passive: true });
+    })
+    .catch(err => {
+      console.error('Failed to load data.yaml:', err);
+      document.getElementById('cards-grid').innerHTML = '<p style="padding:16px;color:var(--muted)">Failed to load talk data. Please refresh the page.</p>';
+    });
 });
 
 // ── Priority loading ──────────────────────────────────────
