@@ -33,7 +33,7 @@ for attempt in 1 2 3; do
   fi
   
   # Use curl with conditional download (-z) and preserve timestamps (-R)
-  HTTP_CODE=$(curl -w "%{http_code}" -o "current-schedule.ics" -f -L -z "current-schedule.ics" -R \
+  HTTP_CODE=$(curl -w "%{http_code}" -o "current-schedule.ics" -f -L -z "current-schedule.ics" -R --compressed \
     --user-agent "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
     --header "Accept: text/calendar,application/octet-stream,*/*;q=0.9" \
     --header "Accept-Language: en-US,en;q=0.9" \
