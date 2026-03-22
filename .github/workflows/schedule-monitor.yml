@@ -36,7 +36,39 @@ jobs:
     - name: Download current schedule
       run: |
         echo "Downloading latest schedule from sched.com..."
-        curl -o "current-schedule.ics" -f "https://kccnceu2026.sched.com/all.ics"
+        
+        # Try download with browser headers and retry logic
+        for attempt in 1 2 3; do
+          echo "Attempt $attempt/3..."
+          
+          if curl -o "current-schedule.ics" -f -L \
+            --user-agent "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+            --header "Accept: text/calendar,application/octet-stream,*/*;q=0.9" \
+            --header "Accept-Language: en-US,en;q=0.9" \
+            --header "Accept-Encoding: gzip, deflate, br" \
+            --header "Cache-Control: no-cache" \
+            --header "Pragma: no-cache" \
+            --connect-timeout 30 \
+            --max-time 120 \
+            --retry 2 \
+            --retry-delay 5 \
+            "https://kccnceu2026.sched.com/all.ics"; then
+            
+            echo "✅ Download successful"
+            break
+          else
+            echo "❌ Attempt $attempt failed"
+            if [ $attempt -eq 3 ]; then
+              echo "🚨 All download attempts failed. Possible causes:"
+              echo "- IP range blocked by sched.com"
+              echo "- Rate limiting"
+              echo "- Service temporarily unavailable"
+              exit 1
+            fi
+            echo "Waiting 10 seconds before retry..."
+            sleep 10
+          fi
+        done
         
         # Get file size for logging
         CURRENT_SIZE=$(wc -c < current-schedule.ics)
