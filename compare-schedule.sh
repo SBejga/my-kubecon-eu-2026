@@ -9,12 +9,36 @@ echo "🔍 KubeCon EU 2026 Schedule Comparator"
 echo "====================================="
 
 # baseline file name
-export BASELINE_FILE="2026-03-22-1408-all.ics"
+export BASELINE_FILE="latest.ics"
 
 # Set timezone to conference location (Amsterdam)
 export TZ="Europe/Amsterdam"
 CURRENT_DATE=$(date '+%A %H:%M')
 CURRENT_ISO=$(date '+%Y-%m-%d %H:%M')
+
+format_event_day() {
+  local dtstart_line="$1"
+  local raw_value date_part
+
+  raw_value="${dtstart_line#*:}"
+  date_part="${raw_value%%T*}"
+  date_part="${date_part%% *}"
+
+  if [ -z "$date_part" ] || [ "${#date_part}" -lt 8 ]; then
+    echo "Unknown day"
+    return
+  fi
+
+  date_part="${date_part:0:8}"
+
+  if formatted_day=$(date -j -f '%Y%m%d' "$date_part" '+%A %Y-%m-%d' 2>/dev/null); then
+    echo "$formatted_day"
+  elif formatted_day=$(date -d "$date_part" '+%A %Y-%m-%d' 2>/dev/null); then
+    echo "$formatted_day"
+  else
+    echo "${date_part:0:4}-${date_part:4:2}-${date_part:6:2}"
+  fi
+}
 
 # Check if downloaded file exists
 if [ ! -f "current-schedule.ics" ]; then
@@ -155,7 +179,8 @@ if ! cmp -s "$BASELINE_FILE" "current-schedule.ics"; then
         fi
         
         if [ -n "$changes" ]; then
-          echo "$summary ($changes )" >> modified_events.txt
+          event_day=$(format_event_day "$dtstart")
+          echo "$summary [$event_day] ($changes )" >> modified_events.txt
           MODIFIED_COUNT=$((MODIFIED_COUNT + 1))
         fi
       fi
