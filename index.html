@@ -140,6 +140,7 @@
     }
     .past-toggle input { accent-color: var(--primary); cursor: pointer; }
     .past-toggle.on { background: var(--primary-light); border-color: var(--primary); color: var(--primary); }
+    #filter-admin-label.on { background: var(--accent); border-color: var(--accent); color: var(--primary); }
 
 
     /* ── Results meta ────────────────────────────────── */
@@ -385,6 +386,9 @@
     <label class="past-toggle" id="hide-past-label">
       <input type="checkbox" id="hide-past"> Hide past talks
     </label>
+    <label class="past-toggle" id="filter-admin-label" style="margin-left:8px">
+      <input type="checkbox" id="filter-admin" checked> Filter admin events (ICS)
+    </label>
   </div>
 </div>
 
@@ -618,6 +622,21 @@ function parseICSDateTime(icsDateTime) {
   return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}Z`);
 }
 
+// ── Administrative Event Filter ────────────────────────
+function isAdminEvent(title) {
+  const adminPatterns = [
+    'Badge Pick-Up',
+    'Cloakroom', 
+    'Coffee Break',
+    '[SOLD OUT]',
+    'Mini Break',
+    'Break ☕',
+    'Lunch 🍲'
+  ];
+  
+  return adminPatterns.some(pattern => title.includes(pattern));
+}
+
 // ── State ───────────────────────────────────────────────
 let query = '';
 let selectedDay = '';
@@ -628,6 +647,7 @@ let scheduleLoaded = false;
 let updatesLoaded = false;
 let debounceTimer = null;
 let hidePast = false;
+let filterAdminEvents = true; // Filter administrative events from ICS
 let selectedPriorities = new Set(); // talks tab priority filter
 let schedDay = '';  // schedule tab day filter
 let dataSource = 'ics'; // 'ics' or 'yaml' - current data source
@@ -660,8 +680,17 @@ function loadICSData() {
     })
     .then(icsText => {
       console.log('📅 Loading events from current-schedule.ics');
-      const icsEvents = parseICS(icsText);
+      let icsEvents = parseICS(icsText);
       console.log(`✅ Parsed ${icsEvents.length} events from ICS`);
+      
+      // Apply filtering if enabled
+      if (filterAdminEvents) {
+        const beforeCount = icsEvents.length;
+        icsEvents = icsEvents.filter(event => !isAdminEvent(event.title));
+        const filteredCount = beforeCount - icsEvents.length;
+        console.log(`🔍 Filtered out ${filteredCount} administrative events`);
+      }
+      
       TALKS_DATA.push(...icsEvents);
       TALKS_DATA.push(...SOCIAL_EVENTS);
       finishDataLoad();
@@ -776,6 +805,18 @@ document.addEventListener('DOMContentLoaded', () => {
     hidePast = e.target.checked;
     document.getElementById('hide-past-label').classList.toggle('on', hidePast);
     render();
+  });
+
+  // Filter admin events toggle
+  document.getElementById('filter-admin').addEventListener('change', (e) => {
+    filterAdminEvents = e.target.checked;
+    document.getElementById('filter-admin-label').classList.toggle('on', filterAdminEvents);
+    
+    // Only reload if we're using ICS data
+    if (dataSource === 'ics') {
+      updateBadge('Reloading...');
+      loadData();
+    }
   });
 
   // Scroll-to-top
